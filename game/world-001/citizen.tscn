@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://51r26n7vxdil"]
+
+[ext_resource type="Script" uid="uid://0yk2ptx2exjs" path="res://citizen.gd" id="1_3aquc"]
+
+[node name="Citizen" type="CharacterBody2D" unique_id=835474950]
+script = ExtResource("1_3aquc")
+
+[node name="NameLabel" type="Label" parent="." unique_id=974300254]
+offset_left = -45.0
+offset_top = -85.0
+offset_right = 26.0
+offset_bottom = -62.0
+text = "@Gabriel"

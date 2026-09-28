@@ -1,0 +1,46 @@
+[gd_scene format=3 uid="uid://bs4otwwlkwmtu"]
+
+[ext_resource type="Script" uid="uid://crb48wi8n5bkt" path="res://world.gd" id="1_f3sb7"]
+
+[node name="World" type="Node2D" unique_id=1105087941]
+script = ExtResource("1_f3sb7")
+
+[node name="Camera" type="Camera2D" parent="." unique_id=311874227]
+position = Vector2(1500, 1500)
+scale = Vector2(0.36, 0.36)
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=565135712]
+
+[node name="PopulationLabel" type="Label" parent="HUD" unique_id=1264147120]
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 161.0
+offset_bottom = 89.0
+text = "WORLD 001
+POPULATION: 0"
+
+[node name="RoseInstruction" type="Label" parent="HUD" unique_id=1575564801]
+offset_left = 280.0
+offset_top = 1780.0
+offset_right = 496.0
+offset_bottom = 1803.0
+theme_override_font_sizes/font_size = 40
+text = "🌹 Rosa = nascer no mundo"
+
+[node name="SpawnMessage" type="Label" parent="HUD" unique_id=773810019]
+visible = false
+offset_left = 300.0
+offset_top = 300.0
+offset_right = 449.0
+offset_bottom = 375.0
+theme_override_font_sizes/font_size = 32
+text = "🌹 ROSA RECEBIDA
+NOVO CIDADÃO
+@Viewer"
+
+[node name="EventFeed" type="Label" parent="HUD" unique_id=931070681]
+offset_left = 40.0
+offset_top = 1350.0
+offset_right = 80.0
+offset_bottom = 1373.0
+text = "EVENTOS"
