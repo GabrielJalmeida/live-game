@@ -16,16 +16,18 @@ offset_left = 40.0
 offset_top = 40.0
 offset_right = 161.0
 offset_bottom = 89.0
+theme_override_font_sizes/font_size = 44
 text = "WORLD 001
 POPULATION: 0"
 
 [node name="RoseInstruction" type="Label" parent="HUD" unique_id=1575564801]
-offset_left = 280.0
-offset_top = 1780.0
-offset_right = 496.0
-offset_bottom = 1803.0
-theme_override_font_sizes/font_size = 40
-text = "🌹 Rosa = nascer no mundo"
+offset_left = 90.0
+offset_top = 220.0
+offset_right = 1028.0
+offset_bottom = 297.0
+theme_override_font_sizes/font_size = 56
+text = "🌹 UMA ROSA = VOCÊ NASCE AQUI"
+horizontal_alignment = 1
 
 [node name="SpawnMessage" type="Label" parent="HUD" unique_id=773810019]
 visible = false
@@ -43,4 +45,9 @@ offset_left = 40.0
 offset_top = 1350.0
 offset_right = 80.0
 offset_bottom = 1373.0
+theme_override_font_sizes/font_size = 24
 text = "EVENTOS"
+
+[node name="CitizensRequest" type="HTTPRequest" parent="." unique_id=1217608223]
+
+[node name="RoseRequest" type="HTTPRequest" parent="." unique_id=2113940846]
