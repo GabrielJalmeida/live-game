@@ -51,3 +51,5 @@ text = "EVENTOS"
 [node name="CitizensRequest" type="HTTPRequest" parent="." unique_id=1217608223]
 
 [node name="RoseRequest" type="HTTPRequest" parent="." unique_id=2113940846]
+
+[node name="WorldRequest" type="HTTPRequest" parent="." unique_id=1872750452]

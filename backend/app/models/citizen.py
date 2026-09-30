@@ -1,7 +1,16 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    func,
+    text
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -9,6 +18,15 @@ from app.db.session import Base
 
 class Citizen(Base):
     __tablename__ = "citizens"
+
+    __table_args__ = (
+        Index(
+            "ux_citizens_world_name",
+            "world_id",
+            "name",
+            unique=True
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36),
@@ -41,6 +59,20 @@ class Citizen(Base):
         String(30),
         nullable=False,
         default="ACTIVE"
+    )
+
+    total_roses: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1")
+    )
+
+    wealth: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=10,
+        server_default=text("10")
     )
 
     spawned_at: Mapped[datetime] = mapped_column(

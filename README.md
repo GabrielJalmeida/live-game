@@ -2,138 +2,501 @@
 
 **A persistent TikTok LIVE world where viewers become citizens through real-time interactions.**
 
-WORLD 001 is an experimental interactive-live project built with **Godot**, **FastAPI**, **SQLite**, **WebSockets**, and **TikTokLive**. Viewers can trigger the creation of persistent citizens during a TikTok LIVE; each citizen is stored by the backend and reconstructed when the world starts again.
+WORLD 001 is an experimental interactive-live project built with **Godot**, **FastAPI**, **SQLite**, **WebSockets**, and **TikTokLive**.
 
-The core idea is simple:
+Viewers can enter a persistent virtual world through TikTok LIVE interactions. A Rose can create a new citizen or support an existing one, while the game client immediately moves the broadcast spotlight to that viewer's character.
+
+The core interaction is simple:
 
 > **🌹 One Rose = you are born into the world.**
 
+The long-term idea is larger:
+
+> **The LIVE is the gateway. The world is the product.**
+
+---
+
 ## Overview
 
-WORLD 001 explores a live format where the stream is not only something to watch — it is an entry point into a persistent simulation.
+WORLD 001 explores a livestream format where the audience does not simply watch a simulation — viewers become persistent inhabitants of it.
 
-During a LIVE, a supported TikTok interaction is received by a Python listener, forwarded to the FastAPI backend, persisted in SQLite, broadcast to Godot over WebSocket, and rendered immediately as a new citizen with the viewer's username.
+During a LIVE, supported TikTok events are received by a Python listener, validated by the FastAPI backend, persisted in SQLite, and broadcast to Godot through WebSocket.
 
-The world remains persistent between sessions, so citizens created during a LIVE can return when the project is restarted.
+A citizen created during one session remains stored in the world and can return when the project starts again.
 
-## Current MVP
-
-The first end-to-end TikTok LIVE MVP has been validated with a real Rose gift.
-
-Implemented behavior:
-
-- Connect to an active TikTok LIVE.
-- Receive real TikTok comments and gift events.
-- Detect a Rose gift from a viewer.
-- Create a citizen using the viewer's TikTok username.
-- Persist citizens in SQLite.
-- Broadcast new citizens to Godot in real time through WebSocket.
-- Restore persisted citizens when Godot starts.
-- Display the current day and population.
-- Show a birth message when a new citizen enters the world.
-- Keep citizens moving autonomously inside the world.
-- Run in a vertical 9:16 layout designed for TikTok LIVE.
-
-## Live Flow
+If the same viewer sends another Rose later, a duplicate citizen is not created. Instead, the existing citizen receives progression and becomes the current broadcast spotlight.
 
 ```text
-TikTok viewer
-    |
-    | sends Rose
-    v
+Viewer sends Rose
+        ↓
 TikTok LIVE
-    |
-    v
+        ↓
 TikTokLive listener
-    |
-    | HTTP POST
-    v
+        ↓
 FastAPI
-    |
-    +------> SQLite
-    |          |
-    |          +--> persistent citizen
-    |
-    | WebSocket
-    v
+        ↓
+validation + idempotency
+        ↓
+SQLite persistence
+        ↓
+WebSocket
+        ↓
 Godot
-    |
-    v
-Citizen appears in the world
+        ↓
+Citizen created or updated
+        ↓
+Camera follows that citizen
 ```
 
-The backend is the source of truth for persistent world data. Godot acts as the visual client that reconstructs and displays the current state.
+---
 
-## Tech Stack
+## Current Status
 
-**Simulation / Client**
-- Godot 4.7
+**Status: Experimental MVP / v0.2 development checkpoint**
+
+The complete TikTok-to-Godot interaction pipeline has been validated during real TikTok LIVE sessions.
+
+The current build includes:
+
+- real TikTok Rose detection;
+- real TikTok comment reception;
+- persistent citizens;
+- persistent Rose progression;
+- duplicate-event protection;
+- persistent LIVE event records;
+- persistent LIVE user records;
+- automatic TikTok reconnection;
+- automatic Godot WebSocket reconnection;
+- client resynchronization after backend reconnection;
+- structured rotating logs;
+- backend/database health checks;
+- citizen movement boundaries;
+- vertical LIVE-oriented HUD;
+- automatic citizen spotlight camera;
+- automated backend tests.
+
+The simulation itself is intentionally still simple. Autonomous life systems, resources, construction, relationships, settlements, conflicts, catastrophes, and procedural-world expansion belong to later stages.
+
+---
+
+# Core Interaction
+
+## New viewer
+
+When a viewer sends a Rose for the first time:
+
+```text
+🌹 Rose
+   ↓
+LiveEvent registered
+   ↓
+Citizen created
+   ↓
+Citizen persisted
+   ↓
+Godot receives realtime event
+   ↓
+Citizen appears
+   ↓
+Camera moves to the citizen
+```
+
+The LIVE displays:
+
+```text
+🌹 ROSA RECEBIDA
+
+NOVO CIDADÃO
+@username
+```
+
+---
+
+## Existing viewer
+
+If the viewer already owns a citizen:
+
+```text
+🌹 Rose
+   ↓
+existing Citizen found
+   ↓
+Rose count increases
+   ↓
+wealth increases
+   ↓
+Citizen is updated
+   ↓
+Camera moves back to that citizen
+```
+
+The LIVE displays:
+
+```text
+🌹 ROSA RECEBIDA
+
+ACOMPANHANDO
+@username
+```
+
+The citizen is not duplicated.
+
+---
+
+# Spotlight Camera
+
+WORLD 001 uses a broadcast-oriented camera model.
+
+The camera does **not** attempt to keep every citizen visible simultaneously.
+
+Instead:
+
+> **The most recent viewer who sends a Rose becomes the current protagonist of the LIVE.**
+
+```text
+@Maria sends Rose
+        ↓
+camera follows @Maria
+
+@Joao sends Rose
+        ↓
+camera moves to @Joao
+
+@Maria sends another Rose later
+        ↓
+camera finds @Maria again
+```
+
+This approach allows the world to expand without forcing the camera to zoom farther and farther away as the population grows.
+
+It also reinforces the persistence concept: returning viewers can see that their previous citizen still exists.
+
+---
+
+# Current MVP Features
+
+## TikTok integration
+
+- Connect to an active TikTok LIVE.
+- Receive `GiftEvent`.
+- Receive `CommentEvent`.
+- Detect Rose gifts.
+- Handle gift quantities.
+- Normalize usernames.
+- Extract external TikTok user identifiers.
+- Extract external event identifiers when available.
+- Automatically retry when the LIVE is offline.
+- Automatically reconnect after connection failures.
+- Ignore duplicate external events.
+
+---
+
+## Citizens
+
+Citizens currently contain persistent information including:
+
+- unique ID;
+- world ID;
+- username;
+- world position;
+- status;
+- total Roses;
+- wealth;
+- creation timestamps.
+
+A Rose currently contributes:
+
+```text
++1 Rose
++10 wealth
+```
+
+per Rose received.
+
+Citizens move autonomously inside the current world boundaries.
+
+---
+
+## Persistence
+
+WORLD 001 currently uses **SQLite** as its persistent database.
+
+The backend is the source of truth.
+
+Godot is a visual client that reconstructs state from the backend.
+
+Current persistent entities include:
+
+```text
+World
+Citizen
+LiveUser
+LiveEvent
+```
+
+Alembic manages database schema evolution.
+
+---
+
+# Event Idempotency
+
+External LIVE events are treated as untrusted input.
+
+When a reliable external event ID is available, WORLD 001 stores the combination:
+
+```text
+provider
++
+provider_event_id
+```
+
+as a unique event identity.
+
+If the same event reaches the backend twice:
+
+```text
+first request
+→ processed
+
+same event again
+→ duplicate
+→ ignored
+```
+
+The Citizen receives the effect only once.
+
+This protects the persistent world against duplicated TikTok events and reconnection-related retransmissions.
+
+---
+
+# Event Processing
+
+The current Rose flow is:
+
+```text
+external event
+      ↓
+Pydantic validation
+      ↓
+LiveUser resolution
+      ↓
+LiveEvent registered as RECEIVED
+      ↓
+duplicate check
+      ↓
+Citizen created or supported
+      ↓
+LiveEvent becomes PROCESSED
+      ↓
+transaction commit
+      ↓
+WebSocket broadcast
+```
+
+Citizen changes and the transition to `PROCESSED` are committed together.
+
+If processing fails:
+
+```text
+rollback
+↓
+Citizen change is reverted
+↓
+LiveEvent remains auditable
+↓
+event is marked FAILED
+```
+
+A WebSocket failure does not undo a successfully persisted Rose.
+
+Godot can recover the current state through REST synchronization.
+
+---
+
+# Realtime Recovery
+
+The Godot client automatically reconnects to the backend WebSocket.
+
+If the backend temporarily stops:
+
+```text
+Godot
+  ↓
+WebSocket disconnects
+  ↓
+automatic retry
+  ↓
+backend returns
+  ↓
+WebSocket reconnects
+  ↓
+world state resynchronizes
+```
+
+Existing citizens are updated instead of duplicated during resynchronization.
+
+The TikTok listener also performs controlled reconnection attempts when the target account is offline or the connection terminates unexpectedly.
+
+---
+
+# Live Flow
+
+```text
+TikTok Viewer
+     |
+     | Rose / Comment
+     v
+TikTok LIVE
+     |
+     v
+TikTokLive Listener
+     |
+     | HTTP
+     v
+FastAPI
+     |
+     +-------------------+
+     |                   |
+     v                   v
+ Validation           LiveUser
+     |                LiveEvent
+     |                   |
+     +---------+---------+
+               |
+               v
+            SQLite
+               |
+               v
+          World State
+               |
+               | WebSocket
+               v
+             Godot
+               |
+               +--> Citizen spawn/update
+               |
+               +--> HUD
+               |
+               +--> Event feed
+               |
+               +--> Spotlight camera
+```
+
+---
+
+# Tech Stack
+
+## Simulation / Visual Client
+
+- Godot 4.x
 - GDScript
 
-**Backend**
+## Backend
+
 - Python
 - FastAPI
 - SQLAlchemy
 - Alembic
+- Pydantic
 - WebSockets
 
-**Persistence**
+## Persistence
+
 - SQLite
 
-**TikTok Integration**
+## TikTok Integration
+
 - TikTokLive
 - httpx
 
-**Broadcast**
+## Testing
+
+- pytest
+- unittest.mock
+
+## Broadcast
+
 - TikTok LIVE Studio
 
-## Architecture
+The current development environment has been tested with:
 
-The project is split into two main parts.
+```text
+Python 3.14.6
+Godot 4.7
+```
 
-### Godot client
+---
+
+# Architecture
+
+WORLD 001 currently consists of three main runtime components.
+
+## Godot Client
 
 Godot is responsible for:
 
 - rendering the world;
-- displaying citizens;
-- autonomous citizen movement;
+- rendering citizens;
+- autonomous visual movement;
+- citizen spawn feedback;
+- Rose progression feedback;
 - population and day HUD;
-- birth feedback;
-- receiving real-time WebSocket events;
-- loading persisted citizens from the REST API.
+- realtime event feed;
+- spotlight camera;
+- WebSocket communication;
+- restoring state through the REST API.
 
-### Python backend
+Godot is **not** the persistent source of truth.
+
+---
+
+## FastAPI Backend
 
 FastAPI is responsible for:
 
 - world state;
-- citizen creation;
-- persistence;
+- citizen persistence;
+- citizen progression;
+- LIVE users;
+- LIVE events;
+- event validation;
+- event idempotency;
+- transactional event processing;
 - REST endpoints;
+- health checks;
 - WebSocket broadcasting;
-- development event simulation.
+- development event simulation;
+- structured logging.
 
-### TikTok listener
+---
 
-The TikTok integration listens to LIVE events separately from the game client.
+## TikTok Listener
 
-For a Rose gift:
+The TikTok integration is isolated from the simulation domain.
+
+It listens for TikTok events and translates them into requests understood by the backend.
+
+For a Rose:
 
 ```text
 GiftEvent
-→ validate gift
-→ extract username and quantity
-→ create citizen through backend
-→ persist
-→ broadcast
+   ↓
+extract TikTok user
+   ↓
+extract event identifier
+   ↓
+normalize payload
+   ↓
+POST to FastAPI
 ```
 
-This keeps the TikTok integration isolated from the simulation itself.
+TikTok-specific code does not directly instantiate Godot citizens.
 
-## API
+---
 
-With the backend running, interactive API documentation is available at:
+# API
+
+With the backend running, interactive FastAPI documentation is available at:
 
 ```text
 http://127.0.0.1:8000/docs
@@ -145,23 +508,117 @@ Current main endpoints:
 |---|---|---|
 | `GET` | `/api/v1/health` | Backend and database health |
 | `GET` | `/api/v1/world` | Current persistent world |
-| `GET` | `/api/v1/citizens` | Citizens stored in the world |
+| `GET` | `/api/v1/citizens` | Persistent citizens |
 | `POST` | `/api/v1/dev/events/rose` | Development Rose event |
-| `WS` | `/ws/world` | Real-time world events for Godot |
+| `POST` | `/api/v1/dev/events/comment` | Development comment event |
+| `WS` | `/ws/world` | Realtime world events |
 
-## Repository Structure
+---
+
+# Health Check
+
+The backend exposes:
+
+```http
+GET /api/v1/health
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "database": "ok",
+  "service": "world-001-backend"
+}
+```
+
+The database status is validated with a real database query.
+
+---
+
+# Logging
+
+WORLD 001 uses structured rotating logs.
+
+Current categories include:
+
+```text
+world_event
+live_integration
+error
+```
+
+Examples of recorded events include:
+
+```text
+rose_received
+citizen_rose_applied
+rose_processed
+rose_duplicate
+
+tiktok_connected
+tiktok_disconnected
+tiktok_live_offline
+tiktok_reconnect_scheduled
+
+rose_processing_failed
+rose_broadcast_failed
+tiktok_connection_failed
+```
+
+Logs are written under:
+
+```text
+backend/logs/
+```
+
+Runtime logs are excluded from Git.
+
+---
+
+# Repository Structure
 
 ```text
 world-001/
+│
 ├── backend/
 │   ├── alembic/
+│   │   └── versions/
+│   │
 │   ├── app/
-│   │   ├── api/            # REST and WebSocket routes
-│   │   ├── db/             # SQLAlchemy session
-│   │   ├── integrations/   # TikTok LIVE listener
-│   │   ├── models/         # Persistent entities
-│   │   ├── realtime/       # WebSocket connection manager
-│   │   └── services/       # World and citizen logic
+│   │   ├── api/
+│   │   │   ├── citizens.py
+│   │   │   ├── dev_events.py
+│   │   │   └── health.py
+│   │   │
+│   │   ├── db/
+│   │   │
+│   │   ├── integrations/
+│   │   │   └── tiktok_listener.py
+│   │   │
+│   │   ├── models/
+│   │   │   ├── citizen.py
+│   │   │   ├── live_event.py
+│   │   │   └── live_user.py
+│   │   │
+│   │   ├── realtime/
+│   │   │
+│   │   ├── scripts/
+│   │   │
+│   │   ├── services/
+│   │   │   ├── citizen_service.py
+│   │   │   ├── live_event_service.py
+│   │   │   ├── live_user_service.py
+│   │   │   └── world_service.py
+│   │   │
+│   │   ├── logging_config.py
+│   │   └── main.py
+│   │
+│   ├── tests/
+│   │   ├── test_citizen_service.py
+│   │   └── test_event_validation.py
+│   │
 │   └── alembic.ini
 │
 └── game/
@@ -173,18 +630,20 @@ world-001/
         └── citizen.gd
 ```
 
-## Getting Started
+---
 
-### Prerequisites
+# Getting Started
+
+## Prerequisites
 
 - Python 3.10+
 - Godot 4.x
-- A TikTok account with access to LIVE for real TikTok testing
+- TikTok account with LIVE access for real integration testing
 - TikTok LIVE Studio for desktop broadcasting
 
-The current development environment has been tested with Python 3.14 and Godot 4.7.
+---
 
-### Backend setup
+## Backend Setup
 
 From the repository root:
 
@@ -202,27 +661,35 @@ On Windows:
 Install the current backend dependencies:
 
 ```bash
-python -m pip install fastapi uvicorn sqlalchemy alembic websockets TikTokLive httpx
+python -m pip install fastapi uvicorn sqlalchemy alembic websockets TikTokLive httpx pytest
 ```
 
-Apply database migrations:
+Apply all database migrations:
 
 ```bash
 python -m alembic upgrade head
 ```
 
-Start the API:
+Start FastAPI:
 
 ```bash
 python -m uvicorn app.main:app --reload
 ```
 
-### TikTok listener
+---
 
-Set the TikTok LIVE username in:
+# TikTok Listener
+
+Set the target TikTok username in:
 
 ```text
 backend/app/integrations/tiktok_listener.py
+```
+
+Example:
+
+```python
+TIKTOK_USERNAME = "@your_username"
 ```
 
 Then, from `backend/` with the virtual environment active:
@@ -231,9 +698,13 @@ Then, from `backend/` with the virtual environment active:
 python -m app.integrations.tiktok_listener
 ```
 
-When the target account is live, the listener connects to the active room and starts receiving supported LIVE events.
+If the target account is offline, the listener remains active and retries automatically.
 
-### Godot client
+When the account starts a LIVE, supported events can begin flowing into WORLD 001.
+
+---
+
+# Godot Client
 
 Open:
 
@@ -241,80 +712,265 @@ Open:
 game/world-001/project.godot
 ```
 
-Run the project with **F5** while the FastAPI backend is active.
+Start the FastAPI backend first.
 
-On startup, Godot requests the existing citizens from the backend and reconstructs the current population.
+Then run the Godot project with:
 
-## Persistence
+```text
+F5
+```
 
-WORLD 001 currently stores its persistent state in SQLite.
+On startup, Godot:
 
-Alembic manages schema changes, including the current `worlds` and `citizens` tables.
+```text
+loads world state
++
+loads persistent citizens
++
+connects WebSocket
++
+reconstructs the current population
+```
 
-A citizen stores the information required to reconstruct it in the world, including:
+If the WebSocket connection later drops, the client automatically retries and resynchronizes after reconnection.
 
-- persistent ID;
-- world ID;
-- username;
-- position;
-- status;
-- creation timestamps.
+---
 
-This means citizens created during a LIVE remain available after restarting the backend and Godot client.
+# Development Rose Simulation
 
-## TikTok Event Handling
+WORLD 001 can be tested without spending TikTok gifts.
 
-The current LIVE integration listens for `GiftEvent` events.
+Inside the Godot client:
 
-Rose gifts are routed through the same backend flow used by development simulations, so TikTok-specific logic does not directly create visual entities inside Godot.
+```text
+R
+```
 
-Gift streaks are processed after the streak finishes to avoid treating intermediate streak updates as separate completed events.
+triggers a simulated development Rose.
 
-A development comment command is also available in the listener for no-cost event testing before using real gifts.
+The backend also includes development scripts under:
 
-## Verified Result
+```text
+backend/app/scripts/
+```
 
-The first real TikTok LIVE test successfully completed the full flow:
+including TikTok-style Rose simulation used to test external event IDs and duplicate protection.
+
+---
+
+# Tests
+
+Run the complete backend test suite from:
+
+```text
+backend/
+```
+
+with the virtual environment active:
+
+```bash
+python -m pytest tests -v
+```
+
+Current checkpoint:
+
+```text
+10 passed
+```
+
+The automated tests currently cover:
+
+- valid Rose events;
+- username normalization;
+- empty username rejection;
+- zero quantity rejection;
+- negative quantity rejection;
+- empty provider rejection;
+- optional-field normalization;
+- support of existing citizens;
+- Rose/wealth progression;
+- transactional and committed citizen updates.
+
+Additional integration behavior has also been manually validated, including:
+
+- duplicate external event rejection;
+- WebSocket reconnection;
+- state resynchronization;
+- TikTok offline retry;
+- persistent citizen restoration;
+- spotlight switching.
+
+---
+
+# Database Migrations
+
+Alembic currently manages migrations for:
+
+- worlds;
+- citizens;
+- citizen progression;
+- citizen uniqueness;
+- LIVE users;
+- LIVE events;
+- external-event uniqueness.
+
+Apply the latest schema with:
+
+```bash
+python -m alembic upgrade head
+```
+
+---
+
+# Git Safety
+
+Runtime and local development data are excluded from the repository.
+
+Examples include:
+
+```text
+.venv/
+__pycache__/
+.pytest_cache/
+logs/
+*.log
+*.db
+```
+
+The SQLite databases therefore remain local and are not part of the Git history.
+
+---
+
+# Verified Live Result
+
+The real TikTok LIVE pipeline has successfully completed:
 
 ```text
 Real Rose
 → TikTok GiftEvent
 → Python listener
 → FastAPI
+→ validation
 → SQLite
 → WebSocket
-→ Godot citizen spawn
+→ Godot citizen spawn/update
+→ persistence
 → restart
 → citizen restored
 ```
 
-The same test also confirmed that real TikTok comments are received by the listener.
+Real TikTok comments have also successfully reached the Godot event feed.
 
-## Current Status
+---
 
-**Status: Experimental MVP / In active development**
+# Current World
 
-The core live-interaction loop is functional and has been tested during a real TikTok LIVE.
+The current visual world is still a prototype.
 
-The current version intentionally keeps the simulation simple: citizens spawn, persist, display their usernames, and move autonomously. Deeper simulation systems such as relationships, jobs, settlements, conflicts, world events, and long-term autonomous behavior are outside the current MVP.
+It currently contains:
 
-The TikTok connection currently relies on the third-party `TikTokLive` library, so changes to TikTok's internal LIVE protocol may require integration updates.
+- a bounded 2D world;
+- stylized terrain;
+- roads;
+- central plaza;
+- decorative vegetation;
+- flowers;
+- autonomous moving citizens;
+- Rose-based visual progression;
+- realtime HUD;
+- event feed;
+- persistent day counter;
+- spotlight camera.
 
-## Project Direction
+The current visual assets and procedural decorations are intentionally provisional.
 
-WORLD 001 is designed around progressive discovery.
+They exist to validate the experience before the final visual direction is built.
 
-The initial interaction is intentionally easy to understand:
+---
+
+# Project Direction
+
+WORLD 001 is designed around **progressive discovery**.
+
+The viewer should understand the first interaction almost immediately:
 
 ```text
-🌹 Rose → a viewer becomes a citizen
+🌹 Rose
+↓
+you enter the world
 ```
 
-Future simulation depth can build on top of the same persistent population rather than replacing the core interaction.
+Complexity should emerge later from the simulation itself.
 
-The long-term goal is a world that continues to develop through both autonomous simulation and viewer participation.
+Planned evolution includes concepts such as:
 
-## Author
+```text
+persistent citizen
+       ↓
+needs
+       ↓
+resources
+       ↓
+work
+       ↓
+construction
+       ↓
+relationships
+       ↓
+families
+       ↓
+villages
+       ↓
+cities
+       ↓
+conflicts
+       ↓
+world events
+```
+
+The project is being developed through small vertical versions rather than attempting to build the final simulation at once.
+
+---
+
+# Next Development Stage
+
+The current backend/live-interaction foundation is being hardened before deeper simulation systems are added.
+
+The next development direction is expected to focus on:
+
+- stronger procedural world generation;
+- improved provisional visual identity;
+- valid navigable regions and spawn areas;
+- resources;
+- hunger and energy;
+- simple autonomous decision-making;
+- the first persistent life loop.
+
+The final visual style is intentionally deferred until the simulation loop has been validated.
+
+---
+
+# Design Principle
+
+WORLD 001 is not intended to become a screen full of buttons and instructions.
+
+The desired experience is:
+
+```text
+simple to enter
+↓
+easy to understand
+↓
+interesting to watch
+↓
+increasingly complex underneath
+```
+
+The LIVE should expose moments from a world that feels alive rather than requiring viewers to understand every system immediately.
+
+---
+
+# Author
 
 **Gabriel Almeida**  
 Software Developer

@@ -1,26 +1,32 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
-from app.db.session import engine
+from app.db.session import get_db
 
 
 router = APIRouter()
 
 
 @router.get("/health")
-def health():
+def health_check(
+    db: Session = Depends(get_db)
+):
     database_status = "ok"
+    overall_status = "ok"
 
     try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
+        db.execute(
+            text("SELECT 1")
+        )
 
-    except Exception:
+    except SQLAlchemyError:
         database_status = "error"
+        overall_status = "degraded"
 
     return {
-        "status": "ok",
+        "status": overall_status,
         "database": database_status,
-        "simulation": "not_started",
-        "live_provider": "not_connected"
+        "service": "world-001-backend"
     }

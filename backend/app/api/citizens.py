@@ -19,12 +19,14 @@ def list_citizens(db: Session = Depends(get_db)):
     )
 
     return [
-        {
-            "id": citizen.id,
-            "name": citizen.name,
-            "x": citizen.x,
-            "y": citizen.y,
-            "status": citizen.status
-        }
-        for citizen in citizens
-    ]
+    {
+        "id": citizen.id,
+        "name": citizen.name,
+        "x": citizen.x,
+        "y": citizen.y,
+        "status": citizen.status,
+        "total_roses": citizen.total_roses,
+        "wealth": citizen.wealth
+    }
+    for citizen in citizens
+]
