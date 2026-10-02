@@ -13,6 +13,8 @@ from app.models.citizen import Citizen
 from app.models.live_user import LiveUser
 from app.models.live_event import LiveEvent
 
+from app.models.world_tree import WorldTree
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

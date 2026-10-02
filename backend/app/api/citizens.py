@@ -26,7 +26,8 @@ def list_citizens(db: Session = Depends(get_db)):
         "y": citizen.y,
         "status": citizen.status,
         "total_roses": citizen.total_roses,
-        "wealth": citizen.wealth
+        "wealth": citizen.wealth,
+        "wood": citizen.wood
     }
     for citizen in citizens
 ]

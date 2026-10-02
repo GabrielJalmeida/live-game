@@ -75,6 +75,13 @@ class Citizen(Base):
         server_default=text("10")
     )
 
+    wood: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0")
+    )
+
     spawned_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
