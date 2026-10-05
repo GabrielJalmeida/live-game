@@ -5,16 +5,23 @@ extends Node2D
 # WORLD 001
 # =========================================================
 
-const WORLD_WIDTH: float = 3000.0
-const WORLD_HEIGHT: float = 3000.0
+const WORLD_WIDTH: float = WorldGenerator.WORLD_WIDTH
+const WORLD_HEIGHT: float = WorldGenerator.WORLD_HEIGHT
 
 const WORLD_CENTER := Vector2(
 	WORLD_WIDTH / 2.0,
 	WORLD_HEIGHT / 2.0
 )
 
-const CITIZEN_MIN := Vector2(200.0, 200.0)
-const CITIZEN_MAX := Vector2(2800.0, 2800.0)
+const CITIZEN_MIN := Vector2(
+	WorldGenerator.CELL_SIZE,
+	WorldGenerator.CELL_SIZE
+)
+
+const CITIZEN_MAX := Vector2(
+	WorldGenerator.WORLD_WIDTH - WorldGenerator.CELL_SIZE,
+	WorldGenerator.WORLD_HEIGHT - WorldGenerator.CELL_SIZE
+)
 
 
 # =========================================================
@@ -55,6 +62,12 @@ const CITIZEN_SCENE = preload(
 	"res://citizen.tscn"
 )
 
+const TREE_SCENE = preload(
+	"res://tree.tscn"
+)
+
+const INITIAL_TREE_COUNT: int = 80
+
 
 # =========================================================
 # WORLD STATE
@@ -67,6 +80,12 @@ var population: int = 0
 var event_history: Array[String] = []
 
 var world_day: int = 1
+
+var world_generator: WorldGenerator
+
+var trees_request: HTTPRequest = null
+
+var trees_request_pending: bool = false
 
 
 # =========================================================
@@ -113,7 +132,20 @@ var visual_rng = RandomNumberGenerator.new()
 # =========================================================
 
 func _ready():
-	generate_world_decorations()
+	world_generator = WorldGenerator.new()
+
+	spawn_procedural_trees()
+
+	trees_request = HTTPRequest.new()
+	trees_request.name = "TreesRequest"
+
+	add_child(
+		trees_request
+	)
+
+	trees_request.request_completed.connect(
+		_on_trees_request_completed
+	)
 
 	setup_camera()
 
@@ -132,6 +164,8 @@ func _ready():
 	)
 
 	connect_websocket()
+
+	load_trees_from_backend()
 
 	load_citizens_from_backend()
 
@@ -351,6 +385,196 @@ func _on_world_request_completed(
 
 
 # =========================================================
+# TREES API
+# =========================================================
+
+func find_tree_by_id(
+	tree_id: String
+) -> WorldTree:
+
+	for node in get_tree().get_nodes_in_group(
+		"trees"
+	):
+		if not (node is WorldTree):
+			continue
+
+		var tree := node as WorldTree
+
+		if tree.tree_id == tree_id:
+			return tree
+
+	return null
+
+
+func get_regrow_seconds_remaining(
+	regrow_at: String
+) -> float:
+	if regrow_at.is_empty():
+		return -1.0
+
+	# O backend envia UTC em formato ISO, podendo conter
+	# microssegundos. Removemos a parte fracionária para
+	# garantir compatibilidade com o parser do Godot.
+	var normalized := regrow_at
+
+	var dot_index := normalized.find(".")
+
+	if dot_index >= 0:
+		normalized = normalized.substr(
+			0,
+			dot_index
+		)
+
+	if normalized.length() < 19:
+		return -1.0
+
+	var regrow_unix := (
+		Time.get_unix_time_from_datetime_string(
+			normalized
+		)
+	)
+
+	var now_unix := (
+		Time.get_unix_time_from_system()
+	)
+
+	return max(
+		0.0,
+		float(regrow_unix) - now_unix
+	)
+
+
+func load_trees_from_backend():
+	if trees_request == null:
+		return
+
+	if trees_request_pending:
+		return
+
+	var url = (
+		API_BASE_URL
+		+ "/trees"
+	)
+
+	var error = trees_request.request(
+		url
+	)
+
+	if error != OK:
+		push_error(
+			"Não foi possível carregar "
+			+ "o estado das árvores."
+		)
+
+		return
+
+	trees_request_pending = true
+
+
+func _on_trees_request_completed(
+	result,
+	response_code,
+	_headers,
+	body
+):
+	trees_request_pending = false
+
+	if result != HTTPRequest.RESULT_SUCCESS:
+		push_error(
+			"Falha ao carregar o estado das árvores."
+		)
+
+		return
+
+	if response_code != 200:
+		push_error(
+			"Backend respondeu às árvores com código: "
+			+ str(response_code)
+		)
+
+		return
+
+	var data = JSON.parse_string(
+		body.get_string_from_utf8()
+	)
+
+	if typeof(data) != TYPE_ARRAY:
+		push_error(
+			"Resposta de árvores inválida."
+		)
+
+		return
+
+	var applied_states: int = 0
+
+	for tree_data in data:
+		if typeof(tree_data) != TYPE_DICTIONARY:
+			continue
+
+		var tree_key := str(
+			tree_data.get(
+				"tree_key",
+				""
+			)
+		)
+
+		if tree_key.is_empty():
+			continue
+
+		var world_tree := find_tree_by_id(
+			tree_key
+		)
+
+		if world_tree == null:
+			print(
+				"⚠️ Estado recebido para árvore "
+				+ "não encontrada no mapa: "
+				+ tree_key
+			)
+
+			continue
+
+		var backend_status := str(
+			tree_data.get(
+				"status",
+				"GROWN"
+			)
+		)
+
+		var regrow_remaining := -1.0
+
+		if backend_status == "STUMP":
+			regrow_remaining = (
+				get_regrow_seconds_remaining(
+					str(
+						tree_data.get(
+							"regrow_at",
+							""
+						)
+					)
+				)
+			)
+
+		world_tree.apply_backend_state(
+			int(
+				tree_data.get(
+					"wood_amount",
+					world_tree.wood_amount
+				)
+			),
+			backend_status,
+			regrow_remaining
+		)
+
+		applied_states += 1
+
+	print(
+		"🌳 Estados persistidos aplicados: ",
+		applied_states
+	)
+
+
+# =========================================================
 # WEBSOCKET
 # =========================================================
 
@@ -441,6 +665,8 @@ func process_websocket(delta):
 
 func resync_world_from_backend():
 	load_world_from_backend()
+
+	load_trees_from_backend()
 
 	load_citizens_from_backend()
 
@@ -720,6 +946,30 @@ func _on_citizens_request_completed(
 # SPAWN / SYNC CITIZEN
 # =========================================================
 
+func get_valid_citizen_position(
+	requested_position: Vector2
+) -> Vector2:
+
+	var safe_position = requested_position.clamp(
+		CITIZEN_MIN,
+		CITIZEN_MAX
+	)
+
+	if world_generator == null:
+		return safe_position
+
+	if world_generator.is_walkable_position(
+		safe_position
+	):
+		return safe_position
+
+	print(
+		"⚠️ Posição inválida detectada. "
+		+ "Citizen reposicionado para terra."
+	)
+
+	return world_generator.get_random_walkable_position()
+
 func spawn_citizen_from_backend(
 	data
 ):
@@ -769,6 +1019,17 @@ func spawn_citizen_from_backend(
 					10
 				)
 			)
+			
+			existing_citizen.wood = int(
+				data.get(
+					"wood",
+					0
+				)
+			)
+			
+			existing_citizen.world_generator = (
+				world_generator
+			)
 
 			var synced_position = Vector2(
 				float(
@@ -786,9 +1047,8 @@ func spawn_citizen_from_backend(
 			)
 
 			existing_citizen.position = (
-				synced_position.clamp(
-					CITIZEN_MIN,
-					CITIZEN_MAX
+				get_valid_citizen_position(
+				synced_position
 				)
 			)
 
@@ -803,6 +1063,8 @@ func spawn_citizen_from_backend(
 	# -----------------------------------------------------
 
 	var citizen = CITIZEN_SCENE.instantiate()
+	
+	citizen.world_generator = world_generator
 
 	citizen.citizen_id = incoming_id
 
@@ -826,6 +1088,13 @@ func spawn_citizen_from_backend(
 			10
 		)
 	)
+	
+	citizen.wood = int(
+		data.get(
+			"wood",
+			0
+		)
+	)
 
 	citizen.position = Vector2(
 		float(
@@ -842,9 +1111,10 @@ func spawn_citizen_from_backend(
 		)
 	)
 
-	citizen.position = citizen.position.clamp(
-		CITIZEN_MIN,
-		CITIZEN_MAX
+	citizen.position = (
+		get_valid_citizen_position(
+		citizen.position
+		)
 	)
 
 	add_child(
@@ -864,6 +1134,8 @@ func spawn_citizen(
 	new_citizen_name: String
 ):
 	var citizen = CITIZEN_SCENE.instantiate()
+	
+	citizen.world_generator = world_generator
 
 	citizen.citizen_name = new_citizen_name
 
@@ -1167,286 +1439,76 @@ func is_valid_decoration_position(
 
 
 func _draw():
+	if world_generator == null:
+		return
+
 	# =====================================================
 	# FUNDO EXTERNO
 	# =====================================================
 
 	draw_rect(
 		Rect2(
-			-2500.0,
-			-2500.0,
-			8000.0,
-			8000.0
+			-2000.0,
+			-2000.0,
+			WORLD_WIDTH + 4000.0,
+			WORLD_HEIGHT + 4000.0
 		),
-		Color("#18281f")
+		Color("#132019")
 	)
 
 	# =====================================================
-	# TERRENO
+	# MAPA PROCEDURAL
 	# =====================================================
 
-	draw_rect(
-		Rect2(
-			0.0,
-			0.0,
-			WORLD_WIDTH,
-			WORLD_HEIGHT
-		),
-		Color("#78ad58")
-	)
-
-	draw_rect(
-		Rect2(
-			55.0,
-			55.0,
-			WORLD_WIDTH - 110.0,
-			WORLD_HEIGHT - 110.0
-		),
-		Color("#83b961")
-	)
-
-	# =====================================================
-	# MANCHAS DE GRAMA
-	# =====================================================
-
-	for i in range(
-		grass_patches.size()
+	for y in range(
+		WorldGenerator.GRID_HEIGHT
 	):
-		var patch = grass_patches[i]
-
-		var radius = (
-			100.0
-			+ float(i % 5) * 24.0
-		)
-
-		var patch_color: Color
-
-		if i % 2 == 0:
-			patch_color = Color(
-				0.36,
-				0.58,
-				0.27,
-				0.20
+		for x in range(
+			WorldGenerator.GRID_WIDTH
+		):
+			var cell = Vector2i(
+				x,
+				y
 			)
 
-		else:
-			patch_color = Color(
-				0.68,
-				0.82,
-				0.42,
-				0.16
+			var terrain = (
+				world_generator.get_terrain(
+					cell
+				)
 			)
 
-		draw_circle(
-			patch,
-			radius,
-			patch_color
-		)
-
-	# =====================================================
-	# ESTRADAS
-	# =====================================================
-
-	var road_outer = Color(
-		"#b99769"
-	)
-
-	var road_inner = Color(
-		"#d7bf91"
-	)
-
-	draw_rect(
-		Rect2(
-			1330.0,
-			0.0,
-			340.0,
-			WORLD_HEIGHT
-		),
-		road_outer
-	)
-
-	draw_rect(
-		Rect2(
-			1370.0,
-			0.0,
-			260.0,
-			WORLD_HEIGHT
-		),
-		road_inner
-	)
-
-	draw_rect(
-		Rect2(
-			0.0,
-			1330.0,
-			WORLD_WIDTH,
-			340.0
-		),
-		road_outer
-	)
-
-	draw_rect(
-		Rect2(
-			0.0,
-			1370.0,
-			WORLD_WIDTH,
-			260.0
-		),
-		road_inner
-	)
-
-	for i in range(12):
-		var line_offset = (
-			260.0
-			+ float(i) * 220.0
-		)
-
-		draw_circle(
-			Vector2(
-				1500.0,
-				line_offset
-			),
-			5.0,
-			Color(
-				1.0,
-				0.94,
-				0.75,
-				0.35
+			var cell_position = Vector2(
+				x * WorldGenerator.CELL_SIZE,
+				y * WorldGenerator.CELL_SIZE
 			)
-		)
 
-		draw_circle(
-			Vector2(
-				line_offset,
-				1500.0
-			),
-			5.0,
-			Color(
-				1.0,
-				0.94,
-				0.75,
-				0.35
+			var cell_rect = Rect2(
+				cell_position,
+				Vector2(
+					WorldGenerator.CELL_SIZE,
+					WorldGenerator.CELL_SIZE
+				)
 			)
-		)
 
-	# =====================================================
-	# PRAÇA CENTRAL
-	# =====================================================
-
-	draw_circle(
-		WORLD_CENTER,
-		300.0,
-		Color("#a68159")
-	)
-
-	draw_circle(
-		WORLD_CENTER,
-		260.0,
-		Color("#d3b47d")
-	)
-
-	draw_circle(
-		WORLD_CENTER,
-		205.0,
-		Color("#edd398")
-	)
-
-	draw_circle(
-		WORLD_CENTER,
-		155.0,
-		Color("#87bc63")
-	)
-
-	draw_circle(
-		WORLD_CENTER,
-		70.0,
-		Color("#709f50")
-	)
-
-	draw_circle(
-		WORLD_CENTER,
-		40.0,
-		Color("#f3c755")
-	)
-
-	# =====================================================
-	# ARBUSTOS
-	# =====================================================
-
-	for bush_position in bushes:
-		draw_circle(
-			bush_position,
-			34.0,
-			Color("#426f3a")
-		)
-
-		draw_circle(
-			bush_position
-			+ Vector2(
-				-12.0,
-				-8.0
-			),
-			24.0,
-			Color("#5d9148")
-		)
-
-		draw_circle(
-			bush_position
-			+ Vector2(
-				13.0,
-				-4.0
-			),
-			21.0,
-			Color("#6fa653")
-		)
-
-	# =====================================================
-	# FLORES
-	# =====================================================
-
-	for i in range(
-		flowers.size()
-	):
-		var flower = flowers[i]
-
-		var flower_color: Color
-
-		match i % 4:
-
-			0:
-				flower_color = Color(
-					"#ffe06b"
+			if (
+				terrain
+				== WorldGenerator.TerrainType.WATER
+			):
+				draw_water_cell(
+					cell_rect,
+					x,
+					y
 				)
 
-			1:
-				flower_color = Color(
-					"#ff9db4"
+			else:
+				draw_grass_cell(
+					cell_rect,
+					x,
+					y
 				)
-
-			2:
-				flower_color = Color(
-					"#ffffff"
-				)
-
-			_:
-				flower_color = Color(
-					"#b9a4ff"
-				)
-
-		draw_circle(
-			flower,
-			7.0,
-			flower_color
-		)
-
-		draw_circle(
-			flower,
-			2.5,
-			Color("#f2b84b")
-		)
 
 	# =====================================================
-	# BORDA
+	# BORDA DO MUNDO
 	# =====================================================
 
 	draw_rect(
@@ -1457,11 +1519,151 @@ func _draw():
 			WORLD_HEIGHT
 		),
 		Color(
-			0.11,
-			0.22,
+			0.08,
 			0.14,
-			0.65
+			0.10,
+			0.8
 		),
 		false,
-		20.0
+		12.0
+	)
+	
+func draw_grass_cell(
+	rect: Rect2,
+	x: int,
+	y: int
+):
+	var variation = (
+		(x * 17 + y * 31) % 4
+	)
+
+	var grass_color: Color
+
+	match variation:
+		0:
+			grass_color = Color("#79ad58")
+
+		1:
+			grass_color = Color("#82b65f")
+
+		2:
+			grass_color = Color("#74a653")
+
+		_:
+			grass_color = Color("#88bb65")
+
+	draw_rect(
+		rect,
+		grass_color
+	)
+
+	# Pequeno detalhe para impedir
+	# que o terreno pareça totalmente chapado.
+	if (
+		(x * 7 + y * 13) % 11
+		== 0
+	):
+		draw_circle(
+			rect.position
+			+ rect.size / 2.0,
+			5.0,
+			Color(
+				0.45,
+				0.65,
+				0.30,
+				0.35
+			)
+		)
+
+
+func draw_water_cell(
+	rect: Rect2,
+	x: int,
+	y: int
+):
+	var variation = (
+		(x * 11 + y * 23) % 3
+	)
+
+	var water_color: Color
+
+	match variation:
+		0:
+			water_color = Color("#4d9fbd")
+
+		1:
+			water_color = Color("#55aac7")
+
+		_:
+			water_color = Color("#4796b5")
+
+	draw_rect(
+		rect,
+		water_color
+	)
+
+	# Reflexo simples provisório.
+	if (
+		(x + y) % 4
+		== 0
+	):
+		draw_line(
+			rect.position
+			+ Vector2(
+				15.0,
+				30.0
+			),
+			rect.position
+			+ Vector2(
+				45.0,
+				30.0
+			),
+			Color(
+				0.78,
+				0.92,
+				0.95,
+				0.40
+			),
+			3.0
+		)
+
+# =========================================================
+# PROCEDURAL TREES
+# =========================================================
+
+func spawn_procedural_trees():
+	if world_generator == null:
+		return
+
+	var tree_positions := (
+		world_generator
+		.get_procedural_tree_positions(
+			INITIAL_TREE_COUNT,
+			95.0
+		)
+	)
+
+	for index in range(
+		tree_positions.size()
+	):
+		var tree = TREE_SCENE.instantiate()
+
+		tree.tree_id = (
+			world_generator
+			.get_tree_id_from_position(
+				tree_positions[index]
+		)
+	)
+
+		tree.position = (
+			tree_positions[index]
+		)
+
+		add_child(
+			tree
+		)
+
+	print(
+		"🌳 Árvores procedurais geradas: ",
+		tree_positions.size()
 	)
