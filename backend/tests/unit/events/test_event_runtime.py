@@ -175,3 +175,36 @@ async def test_dispatch_without_experience_fails_explicitly():
         NoActiveExperienceError
     ):
         await manager.dispatch(event)
+
+class FakeRealtimeManager:
+    def __init__(self):
+        self.published = []
+
+    async def publish(self, output):
+        self.published.append(output)
+
+
+@pytest.mark.asyncio
+async def test_dispatch_publishes_outputs_to_realtime():
+    realtime_manager = FakeRealtimeManager()
+    manager = ExperienceManager(realtime_manager=realtime_manager)
+
+    experience = EchoExperience()
+    context = ExperienceContext(experience_slug="echo")
+
+    await manager.start(experience, context)
+
+    event = LiveEvent.create(
+        type=EventType.COMMENT,
+        provider="dev",
+        viewer=Viewer(
+            provider_user_id="123",
+            username="@gabriel",
+        ),
+        payload={"text": "A"},
+    )
+
+    outputs = await manager.dispatch(event)
+
+    assert len(outputs) == 1
+    assert realtime_manager.published == outputs
