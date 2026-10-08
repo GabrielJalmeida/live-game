@@ -168,3 +168,60 @@ async def test_engine_runtime_accepts_event_specific_context():
     )
 
     assert experience.received_events == [event]
+
+from app.experiences.world001.experience import World001Experience
+
+
+def test_default_engine_registers_world001():
+    from app.runtime.engine import engine
+
+    assert "world001" in engine.experience_loader.list_slugs()
+
+
+def test_default_engine_can_create_world001():
+    from app.runtime.engine import engine
+
+    experience = engine.experience_loader.create("world001")
+
+    assert isinstance(experience, World001Experience)
+
+@pytest.mark.asyncio
+async def test_engine_runtime_can_dispatch_without_publishing():
+    realtime_manager = FakeRealtimeManager()
+
+    runtime = EngineRuntime(
+        realtime_manager=realtime_manager,
+    )
+
+    experience = StubExperience()
+
+    await runtime.start(
+        experience,
+        ExperienceContext(
+            experience_slug="stub",
+        ),
+    )
+
+    event = LiveEvent.create(
+        type=EventType.COMMENT,
+        provider="dev",
+        viewer=Viewer(
+            provider_user_id="123",
+            username="@gabriel",
+        ),
+        payload={
+            "text": "hello",
+        },
+    )
+
+    outputs = await runtime.dispatch(
+        event,
+        publish=False,
+    )
+
+    assert len(outputs) == 1
+    assert realtime_manager.published == []
+
+    await runtime.publish(outputs)
+
+    assert realtime_manager.published == outputs

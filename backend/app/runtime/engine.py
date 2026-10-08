@@ -59,11 +59,19 @@ class EngineRuntime:
         self,
         event: LiveEvent,
         context: ExperienceContext | None = None,
+        publish: bool = True,
     ) -> list[OutputEvent]:
         return await self.experience_manager.dispatch(
             event,
             context,
+            publish=publish,
         )
+
+    async def publish(
+        self,
+        outputs: list[OutputEvent],
+    ) -> None:
+        await self.experience_manager.publish(outputs)
 
     async def get_state(self) -> dict:
         return await self.experience_manager.get_state()
@@ -72,4 +80,8 @@ class EngineRuntime:
         return await self.experience_manager.health()
 
 
+from app.experiences.world001.experience import World001Experience
+
 engine = EngineRuntime()
+
+engine.register_experience(World001Experience)

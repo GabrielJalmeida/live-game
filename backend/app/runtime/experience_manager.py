@@ -29,16 +29,24 @@ class ExperienceManager:
         self,
         event: LiveEvent,
         context: ExperienceContext | None = None,
+        publish: bool = True,
     ) -> list[OutputEvent]:
         outputs = await self.router.route(
             event,
             context,
         )
 
-        for output in outputs:
-            await self.realtime_manager.publish(output)
+        if publish:
+            await self.publish(outputs)
 
         return outputs
+
+    async def publish(
+        self,
+        outputs: list[OutputEvent],
+    ) -> None:
+        for output in outputs:
+            await self.realtime_manager.publish(output)
 
     async def get_state(self) -> dict:
         experience = self.router._experience
