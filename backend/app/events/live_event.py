@@ -15,6 +15,7 @@ class LiveEvent:
     event_id: str
     type: EventType
     provider: str
+    provider_event_id: str | None
     session_id: str | None
     occurred_at: datetime
     viewer: Viewer | None
@@ -24,18 +25,20 @@ class LiveEvent:
     def create(
         cls,
         *,
+        event_id: str | None = None,
         type: EventType,
         provider: str,
-        viewer: Viewer | None,
-        payload: dict | None = None,
+        provider_event_id: str | None = None,
         session_id: str | None = None,
-        event_id: str | None = None,
         occurred_at: datetime | None = None,
-    ) -> "LiveEvent":
+        viewer: Viewer | None = None,
+        payload: dict | None = None,
+    ):
         return cls(
             event_id=event_id or f"evt_{uuid4()}",
             type=type,
             provider=provider,
+            provider_event_id=provider_event_id,
             session_id=session_id,
             occurred_at=occurred_at or utc_now(),
             viewer=viewer,
@@ -47,12 +50,9 @@ class LiveEvent:
             "event_id": self.event_id,
             "type": self.type.value,
             "provider": self.provider,
+            "provider_event_id": self.provider_event_id,
             "session_id": self.session_id,
             "occurred_at": self.occurred_at.isoformat(),
-            "viewer": (
-                self.viewer.to_dict()
-                if self.viewer is not None
-                else None
-            ),
+            "viewer": self.viewer.to_dict() if self.viewer else None,
             "payload": self.payload.copy(),
         }

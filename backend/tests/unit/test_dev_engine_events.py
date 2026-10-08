@@ -27,6 +27,8 @@ def test_build_live_event_creates_generic_gift():
 
     event = build_live_event(request)
 
+    assert event.provider_event_id == "gift-001"
+
     assert event.type == EventType.GIFT
     assert event.provider == "dev"
     assert event.provider == "dev"
@@ -103,56 +105,48 @@ class FakeEngine:
 
 
 @pytest.mark.asyncio
-async def test_dev_event_publishes_only_after_commit(
+async def test_dev_event_delegates_to_ingestion_service(
     monkeypatch,
 ):
     import app.api.dev_engine_events as module
 
     db = FakeDB()
-    fake_engine = FakeEngine()
+    calls = []
 
-    monkeypatch.setattr(
-        module,
-        "engine",
-        fake_engine,
-    )
+    class FakeResult:
+        status = "processed"
+        event_id = "record-1"
+        outputs = []
 
-    monkeypatch.setattr(
-        module,
-        "get_or_create_live_user",
-        lambda **kwargs: FakeLiveUser(),
-    )
-
-    monkeypatch.setattr(
-        module,
-        "register_live_event",
-        lambda **kwargs: (
-            FakeLiveEventRecord(),
-            True,
-        ),
-    )
-
-    def fake_mark_processed(
+    async def fake_ingest_event(
         db,
-        live_event,
-        commit,
+        event,
+        context,
+        publish,
     ):
-        db.operations.append(
-            ("mark_processed", commit)
+        calls.append(
+            {
+                "db": db,
+                "event": event,
+                "context": context,
+                "publish": publish,
+            }
         )
 
+        return FakeResult()
+
     monkeypatch.setattr(
         module,
-        "mark_processed",
-        fake_mark_processed,
+        "ingest_event",
+        fake_ingest_event,
     )
 
     request = DevEventRequest(
         type=EventType.GIFT,
         provider="dev",
-        provider_event_id="gift-001",
+        provider_event_id="provider-event-1",
         viewer=DevViewerRequest(
-            provider_user_id="user-001",
+            provider_user_id="user-1",
             username="gabriel",
         ),
         payload={
@@ -161,19 +155,37 @@ async def test_dev_event_publishes_only_after_commit(
         },
     )
 
-    response = await receive_dev_event(
+    response = await module.receive_dev_event(
         request,
         db,
     )
 
-    assert response["status"] == "processed"
+    assert response == {
+        "status": "processed",
+        "event_id": "record-1",
+        "outputs": [],
+    }
 
-    assert fake_engine.operations == [
-        ("dispatch", False),
-        "publish",
-    ]
+    assert len(calls) == 1
 
-    assert db.operations == [
-        ("mark_processed", False),
-        "commit",
-    ]
+    call = calls[0]
+
+    assert call["db"] is db
+    assert call["publish"] is True
+
+    assert call["event"].type == EventType.GIFT
+    assert call["event"].provider == "dev"
+    assert (
+        call["event"].provider_event_id
+        == "provider-event-1"
+    )
+
+    assert call["event"].viewer is not None
+    assert call["event"].viewer.username == "@gabriel"
+
+    assert (
+        call["context"].experience_slug
+        == "world001"
+    )
+
+    assert call["context"].session is db

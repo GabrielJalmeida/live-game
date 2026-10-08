@@ -113,3 +113,31 @@ def test_output_event_is_transport_agnostic():
     assert data["type"] == "CITIZEN_SPAWNED"
     assert data["experience"] == "world001"
     assert data["data"]["citizen_id"] == "citizen-001"
+
+def test_live_event_preserves_provider_event_id():
+    event = LiveEvent.create(
+        type=EventType.GIFT,
+        provider="tiktok",
+        provider_event_id="tiktok-event-123",
+        payload={
+            "gift_name": "Rose",
+            "quantity": 3,
+        },
+    )
+
+    assert event.event_id.startswith("evt_")
+    assert event.provider_event_id == "tiktok-event-123"
+
+    assert event.event_id != event.provider_event_id
+
+
+def test_live_event_provider_event_id_is_optional():
+    event = LiveEvent.create(
+        type=EventType.COMMENT,
+        provider="dev",
+        payload={
+            "text": "hello",
+        },
+    )
+
+    assert event.provider_event_id is None
