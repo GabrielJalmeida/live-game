@@ -7,11 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.events import EventType, LiveEvent, Viewer
-from app.runtime.experience_context import ExperienceContext
 
-from app.services.citizen_service import create_or_support_citizen
 from app.services.event_ingestion_service import ingest_event
-from app.services.world_service import get_or_create_world
 
 
 router = APIRouter()
@@ -159,19 +156,9 @@ async def receive_dev_event(
 ):
     event = build_live_event(payload)
 
-    context = ExperienceContext(
-        experience_slug="world001",
-        session=db,
-        services={
-            "world_service": get_or_create_world,
-            "citizen_service": create_or_support_citizen,
-        },
-    )
-
     result = await ingest_event(
         db=db,
         event=event,
-        context=context,
         publish=True,
     )
 

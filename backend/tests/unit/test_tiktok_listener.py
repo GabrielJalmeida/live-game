@@ -42,14 +42,12 @@ async def test_ingest_tiktok_event_creates_and_closes_session(
     async def fake_ingest_event(
         db,
         event,
-        context,
         publish,
     ):
         calls.append(
             {
                 "db": db,
                 "event": event,
-                "context": context,
                 "publish": publish,
             }
         )
@@ -88,8 +86,4 @@ async def test_ingest_tiktok_event_creates_and_closes_session(
     assert calls[0]["db"] is sessions.created[0]
     assert calls[0]["event"] is event
     assert calls[0]["publish"] is True
-    assert (
-        calls[0]["context"].experience_slug
-        == "world001"
-    )
     assert sessions.created[0].closed is True

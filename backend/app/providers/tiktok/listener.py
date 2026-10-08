@@ -16,9 +16,7 @@ from app.providers.tiktok.adapter import (
     from_gift,
 )
 from app.runtime.experience_context import ExperienceContext
-from app.services.citizen_service import create_or_support_citizen
 from app.services.event_ingestion_service import ingest_event
-from app.services.world_service import get_or_create_world
 
 
 TIKTOK_USERNAME = "@beyondway"
@@ -53,12 +51,9 @@ async def ingest_tiktok_event(event):
     db = SessionLocal()
 
     try:
-        context = build_context(db)
-
         result = await ingest_event(
             db=db,
             event=event,
-            context=context,
             publish=True,
         )
 

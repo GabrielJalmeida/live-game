@@ -225,3 +225,17 @@ async def test_engine_runtime_can_dispatch_without_publishing():
     await runtime.publish(outputs)
 
     assert realtime_manager.published == outputs
+
+def test_engine_runtime_builds_context_from_active_experience():
+    runtime = EngineRuntime()
+
+    experience = StubExperience()
+
+    runtime.experience_manager.router._experience = experience
+
+    context = runtime.build_context(
+        "fake-session"
+    )
+
+    assert context.experience_slug == "stub"
+    assert context.session == "fake-session"

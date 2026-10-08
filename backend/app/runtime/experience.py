@@ -21,6 +21,12 @@ class InteractiveExperience(ABC):
     ) -> None:
         pass
 
+    def build_context(self, session):
+        return ExperienceContext(
+            experience_slug=self.slug,
+            session=session,
+        )
+
     @abstractmethod
     async def handle_event(
         self,

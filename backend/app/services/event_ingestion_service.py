@@ -24,7 +24,7 @@ class EventIngestionResult:
 async def ingest_event(
     db: Session,
     event: LiveEvent,
-    context: ExperienceContext,
+    context: ExperienceContext | None = None,
     *,
     publish: bool = True,
 ) -> EventIngestionResult:

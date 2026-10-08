@@ -79,6 +79,16 @@ class EngineRuntime:
     async def health(self) -> dict:
         return await self.experience_manager.health()
 
+    def build_context(self, session) -> ExperienceContext:
+        experience = self.experience_manager.router._experience
+
+        if experience is None:
+            raise RuntimeError(
+                "Nenhuma Experience está ativa."
+            )
+
+        return experience.build_context(session)
+
 
 from app.experiences.world001.experience import World001Experience
 

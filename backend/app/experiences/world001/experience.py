@@ -2,6 +2,8 @@ from app.events import EventType, LiveEvent, OutputEvent
 from app.runtime.experience import InteractiveExperience
 from app.runtime.experience_context import ExperienceContext
 
+from app.services.citizen_service import create_or_support_citizen
+from app.services.world_service import get_or_create_world
 
 class World001Experience(InteractiveExperience):
     slug = "world001"

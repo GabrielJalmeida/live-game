@@ -121,14 +121,12 @@ async def test_dev_event_delegates_to_ingestion_service(
     async def fake_ingest_event(
         db,
         event,
-        context,
         publish,
     ):
         calls.append(
             {
                 "db": db,
                 "event": event,
-                "context": context,
                 "publish": publish,
             }
         )
@@ -182,10 +180,3 @@ async def test_dev_event_delegates_to_ingestion_service(
 
     assert call["event"].viewer is not None
     assert call["event"].viewer.username == "@gabriel"
-
-    assert (
-        call["context"].experience_slug
-        == "world001"
-    )
-
-    assert call["context"].session is db
