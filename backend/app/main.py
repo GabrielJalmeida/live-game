@@ -7,10 +7,16 @@ from app.api.dev_events import router as dev_events_router
 from app.api.websocket import router as websocket_router
 from app.api.world_trees import router as world_trees_router
 
+from contextlib import asynccontextmanager
+
+from app.runtime.engine import engine
+from app.runtime.experience_context import ExperienceContext
+
 
 app = FastAPI(
     title="WORLD 001 API",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -52,3 +58,16 @@ def root():
         "version": "0.1.0",
         "status": "running"
     }
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await engine.start(
+        engine.experience_loader.create("world001"),
+        ExperienceContext(
+            experience_slug="world001"
+        ),
+    )
+
+    yield
+
+    await engine.stop()
