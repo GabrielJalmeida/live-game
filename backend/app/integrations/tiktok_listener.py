@@ -1,32 +1,33 @@
-import httpx
 import asyncio
 
-from app.logging_config import get_logger
-
-from TikTokLive.client.errors import UserOfflineError
 from TikTokLive import TikTokLiveClient
+from TikTokLive.client.errors import UserOfflineError
 from TikTokLive.events import (
+    CommentEvent,
     ConnectEvent,
     DisconnectEvent,
     GiftEvent,
-    CommentEvent,
 )
+
+from app.db.session import SessionLocal
+from app.logging_config import get_logger
+from app.providers.tiktok.adapter import (
+    from_comment,
+    from_gift,
+)
+from app.runtime.experience_context import ExperienceContext
+from app.services.citizen_service import create_or_support_citizen
+from app.services.event_ingestion_service import ingest_event
+from app.services.world_service import get_or_create_world
 
 
 TIKTOK_USERNAME = "@beyondway"
-
-BACKEND_ROSE_URL = (
-    "http://127.0.0.1:8000/api/v1/dev/events/rose"
-)
-
-BACKEND_COMMENT_URL = (
-    "http://127.0.0.1:8000/api/v1/dev/events/comment"
-)
 
 
 client = TikTokLiveClient(
     unique_id=TIKTOK_USERNAME
 )
+
 
 live_integration_log = get_logger(
     "live_integration"
@@ -36,122 +37,35 @@ error_log = get_logger(
     "error"
 )
 
-def normalize_username(username: str) -> str:
-    username = username.strip()
 
-    if not username.startswith("@"):
-        username = f"@{username}"
-
-    return username
-
-
-async def send_rose_to_backend(
-    username: str,
-    quantity: int = 1,
-    provider: str = "tiktok",
-    provider_user_id: str | None = None,
-    provider_event_id: str | None = None,
-    display_name: str | None = None,
-):
-    payload = {
-        "username": username,
-        "quantity": quantity,
-        "provider": provider,
-        "provider_user_id": provider_user_id,
-        "provider_event_id": provider_event_id,
-        "display_name": display_name,
-    }
-
-    async with httpx.AsyncClient() as http_client:
-        response = await http_client.post(
-            BACKEND_ROSE_URL,
-            json=payload,
-            timeout=10.0,
-        )
-
-        response.raise_for_status()
-
-        return response.json()
+def build_context(db) -> ExperienceContext:
+    return ExperienceContext(
+        experience_slug="world001",
+        session=db,
+        services={
+            "world_service": get_or_create_world,
+            "citizen_service": create_or_support_citizen,
+        },
+    )
 
 
-async def process_rose(
-    username: str,
-    quantity: int = 1,
-    provider: str = "tiktok",
-    provider_user_id: str | None = None,
-    provider_event_id: str | None = None,
-    display_name: str | None = None,
-):
-    username = normalize_username(username)
+async def ingest_tiktok_event(event):
+    db = SessionLocal()
 
     try:
-        result = await send_rose_to_backend(
-            username=username,
-            quantity=quantity,
-            provider=provider,
-            provider_user_id=provider_user_id,
-            provider_event_id=provider_event_id,
-            display_name=display_name,
+        context = build_context(db)
+
+        result = await ingest_event(
+            db=db,
+            event=event,
+            context=context,
+            publish=True,
         )
 
-        if result.get("status") == "duplicate":
-            print(
-                "♻️ Evento TikTok duplicado ignorado:",
-                provider_event_id,
-            )
+        return result
 
-            return
-
-        print(
-            "🌹 Rosa processada:",
-            username,
-            "| quantidade:",
-            quantity,
-            "| evento:",
-            provider_event_id,
-        )
-
-    except Exception as error:
-        print(
-            "❌ Erro ao processar Rosa:",
-            error,
-        )
-
-
-async def send_comment_to_backend(
-    username: str,
-    comment: str,
-):
-    username = normalize_username(username)
-
-    try:
-        async with httpx.AsyncClient() as http_client:
-            response = await http_client.post(
-                BACKEND_COMMENT_URL,
-                json={
-                    "username": username,
-                    "comment": comment,
-                },
-                timeout=5.0,
-            )
-
-        if response.status_code == 200:
-            print(
-                f"✅ Comentário de {username} "
-                f"enviado para o WORLD 001"
-            )
-
-        else:
-            print(
-                "❌ Erro enviando comentário: "
-                f"{response.status_code}: "
-                f"{response.text}"
-            )
-
-    except Exception as error:
-        print(
-            f"❌ Falha ao enviar comentário: {error}"
-        )
+    finally:
+        db.close()
 
 
 @client.on(ConnectEvent)
@@ -172,111 +86,94 @@ async def on_disconnect(event):
 
 @client.on(CommentEvent)
 async def on_comment(event: CommentEvent):
-    user = event.user
+    live_event = from_comment(event)
 
-    if user is None:
+    if live_event is None:
         return
 
-    username = normalize_username(
-        user.unique_id
+    username = (
+        live_event.viewer.username
+        if live_event.viewer is not None
+        else "unknown"
     )
 
-    comment = event.comment.strip()
-
-    if not comment:
-        return
+    comment = live_event.payload.get(
+        "text",
+        "",
+    )
 
     print(
         f"💬 {username}: {comment}"
     )
 
-    await send_comment_to_backend(
-        username,
-        comment,
-    )
-
-    if comment.lower() == "!rose":
-        print(
-            f"🌹 ROSA DE TESTE recebida de {username}"
+    try:
+        result = await ingest_tiktok_event(
+            live_event
         )
 
-        await process_rose(
-            username=username,
-            provider="tiktok",
-            provider_user_id=str(
-                getattr(user, "id", "")
-                or username
-            ),
+        if result.status == "duplicate":
+            print(
+                "⚠ Evento TikTok duplicado ignorado:",
+                live_event.provider_event_id,
+            )
+
+    except Exception as error:
+        error_log.exception(
+            "tiktok_comment_processing_failed "
+            f"provider_event_id="
+            f"{live_event.provider_event_id} "
+            f"username={username} "
+            f"error={error}"
         )
 
 
 @client.on(GiftEvent)
 async def on_gift(event: GiftEvent):
-    gift = event.gift
-    user = event.user
+    live_event = from_gift(event)
 
-    if gift is None:
+    if live_event is None:
         return
 
-    if user is None:
-        return
-
-    # Presentes que podem formar sequência geram
-    # vários eventos. Processamos somente o evento
-    # final da sequência.
-    if gift.streakable and event.streaking:
-        return
-
-    username_value = (
-        getattr(user, "unique_id", None)
-        or getattr(user, "display_id", None)
+    username = (
+        live_event.viewer.username
+        if live_event.viewer is not None
+        else "unknown"
     )
 
-    if not username_value:
-        return
-
-    username = normalize_username(
-        username_value
+    gift_name = live_event.payload.get(
+        "gift_name",
+        "unknown",
     )
 
-    provider_user_id = str(
-        getattr(user, "id", "")
-        or getattr(user, "user_id", "")
-        or username_value
+    quantity = live_event.payload.get(
+        "quantity",
+        1,
     )
-
-    provider_event_id = (
-        getattr(event, "order_id", None)
-        or getattr(event, "log_id", None)
-    )
-
-    if provider_event_id:
-        provider_event_id = str(
-            provider_event_id
-        )
-
-    display_name = getattr(
-        user,
-        "nickname",
-        None,
-    )
-
-    gift_name = gift.name
-    quantity = event.repeat_count or 1
 
     print(
         f"🎁 {username} enviou "
         f"{quantity}x {gift_name}"
     )
 
-    if gift_name.lower() == "rose":
-        await process_rose(
-            username=username,
-            quantity=quantity,
-            provider="tiktok",
-            provider_user_id=provider_user_id,
-            provider_event_id=provider_event_id,
-            display_name=display_name,
+    try:
+        result = await ingest_tiktok_event(
+            live_event
+        )
+
+        if result.status == "duplicate":
+            print(
+                "⚠ Evento TikTok duplicado ignorado:",
+                live_event.provider_event_id,
+            )
+
+    except Exception as error:
+        error_log.exception(
+            "tiktok_gift_processing_failed "
+            f"provider_event_id="
+            f"{live_event.provider_event_id} "
+            f"username={username} "
+            f"gift_name={gift_name} "
+            f"error={error}"
         )
 
 
@@ -287,7 +184,7 @@ async def run_with_reconnect():
         try:
             print()
             print(
-                f"🔎 Tentando conectar em "
+                f"🔌 Tentando conectar em "
                 f"{TIKTOK_USERNAME}..."
             )
 
@@ -324,7 +221,7 @@ async def run_with_reconnect():
         )
 
         print(
-            f"🔄 Nova tentativa em "
+            f"🔁 Nova tentativa em "
             f"{retry_delay} segundos..."
         )
 
