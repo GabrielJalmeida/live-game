@@ -5,20 +5,29 @@ import httpx
 
 
 BACKEND_URL = (
-    "http://127.0.0.1:8000/api/v1/dev/events/rose"
+    "http://127.0.0.1:8000/api/v1/dev/events"
 )
 
 
 async def main():
-    event_id = f"fake-tiktok-{uuid.uuid4()}"
+    provider_event_id = (
+        f"fake-tiktok-{uuid.uuid4()}"
+    )
 
     payload = {
-        "username": "@teste_tiktok",
-        "quantity": 1,
+        "type": "GIFT",
         "provider": "tiktok",
-        "provider_user_id": "fake-user-001",
-        "provider_event_id": event_id,
-        "display_name": "Teste TikTok",
+        "provider_event_id": provider_event_id,
+        "viewer": {
+            "provider_user_id": "fake-user-001",
+            "username": "@teste_tiktok",
+            "display_name": "Teste TikTok",
+        },
+        "payload": {
+            "gift_id": 5655,
+            "gift_name": "Rose",
+            "quantity": 1,
+        },
     }
 
     async with httpx.AsyncClient() as client:
@@ -30,9 +39,18 @@ async def main():
             timeout=10.0,
         )
 
-        print("Event ID:", event_id)
-        print("Status HTTP:", response_1.status_code)
-        print("Resposta:", response_1.json())
+        print(
+            "Provider Event ID:",
+            provider_event_id,
+        )
+        print(
+            "Status HTTP:",
+            response_1.status_code,
+        )
+        print(
+            "Resposta:",
+            response_1.json(),
+        )
 
         print("\n=== SEGUNDO ENVIO ===")
 
@@ -42,9 +60,18 @@ async def main():
             timeout=10.0,
         )
 
-        print("Event ID:", event_id)
-        print("Status HTTP:", response_2.status_code)
-        print("Resposta:", response_2.json())
+        print(
+            "Provider Event ID:",
+            provider_event_id,
+        )
+        print(
+            "Status HTTP:",
+            response_2.status_code,
+        )
+        print(
+            "Resposta:",
+            response_2.json(),
+        )
 
 
 if __name__ == "__main__":
