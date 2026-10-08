@@ -1,7 +1,7 @@
 import pytest
 
 from app.events import EventType, LiveEvent, Viewer
-from app.integrations import tiktok_listener as module
+from app.providers.tiktok import listener as module
 
 
 class FakeDB:

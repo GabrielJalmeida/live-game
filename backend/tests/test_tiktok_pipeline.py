@@ -1,7 +1,7 @@
 import pytest
 
 from app.events import EventType
-from app.integrations import tiktok_listener as listener
+from app.providers.tiktok import listener
 
 
 class FakeUser:
