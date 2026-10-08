@@ -4,6 +4,7 @@ from app.api.health import router as health_router
 from app.api.worlds import router as worlds_router
 from app.api.citizens import router as citizens_router
 from app.api.dev_events import router as dev_events_router
+from app.api.dev_engine_events import router as dev_engine_events_router
 from app.api.websocket import router as websocket_router
 from app.api.world_trees import router as world_trees_router
 
@@ -19,6 +20,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.include_router(
+    dev_engine_events_router,
+    prefix="/api/v1"
+)
 
 app.include_router(
     health_router,
