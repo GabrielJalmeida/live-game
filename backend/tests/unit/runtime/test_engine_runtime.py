@@ -132,3 +132,39 @@ async def test_engine_runtime_can_start_registered_experience():
         runtime.experience_manager.router._experience.slug
         == "stub"
     )
+
+@pytest.mark.asyncio
+async def test_engine_runtime_accepts_event_specific_context():
+    runtime = EngineRuntime()
+    experience = StubExperience()
+
+    await runtime.start(
+        experience,
+        ExperienceContext(
+            experience_slug="stub",
+        ),
+    )
+
+    event_context = ExperienceContext(
+        experience_slug="stub",
+        session="event-session",
+    )
+
+    event = LiveEvent.create(
+        type=EventType.COMMENT,
+        provider="dev",
+        viewer=Viewer(
+            provider_user_id="123",
+            username="@gabriel",
+        ),
+        payload={
+            "text": "hello",
+        },
+    )
+
+    await runtime.dispatch(
+        event,
+        context=event_context,
+    )
+
+    assert experience.received_events == [event]

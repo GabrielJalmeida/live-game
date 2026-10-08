@@ -25,8 +25,15 @@ class ExperienceManager:
     async def stop(self) -> None:
         await self.router.clear_experience()
 
-    async def dispatch(self, event: LiveEvent) -> list[OutputEvent]:
-        outputs = await self.router.route(event)
+    async def dispatch(
+        self,
+        event: LiveEvent,
+        context: ExperienceContext | None = None,
+    ) -> list[OutputEvent]:
+        outputs = await self.router.route(
+            event,
+            context,
+        )
 
         for output in outputs:
             await self.realtime_manager.publish(output)

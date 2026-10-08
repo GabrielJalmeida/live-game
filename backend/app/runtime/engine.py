@@ -58,8 +58,12 @@ class EngineRuntime:
     async def dispatch(
         self,
         event: LiveEvent,
+        context: ExperienceContext | None = None,
     ) -> list[OutputEvent]:
-        return await self.experience_manager.dispatch(event)
+        return await self.experience_manager.dispatch(
+            event,
+            context,
+        )
 
     async def get_state(self) -> dict:
         return await self.experience_manager.get_state()
